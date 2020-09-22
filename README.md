@@ -211,3 +211,48 @@ Next, she can run
 `kfg gen app.kfg app.json --db_username sa123456 --db_password sasa123456789
 
 which will generate the needed *app.json* for the application.
+
+### evolve
+
+Another use case is where some of the configuration values are available at different steps in a build/release pipeline.
+
+*app.kfg*
+```
+DEFINE ENV:sql_server_address <ipaddress> /// The IP Address for the MS SQL database containing the users
+DEFINE ARG:db_username <minlength(8);nospecial> /// Username for a MS SQL user that has read/write access to the user table
+DEFINE ARG:db_password <optional;minlength(12)> /// password for provided user
+VAULT AKV:db_password "https://myvault.vault.azure.net"
+VAL db_password = ARG:db_password ?? AKV:db_password
+{
+    "dbs" : {
+        "user_db" : {
+            "server" : "{{ENV:sql_server_address}}",
+            "username" : "{{ARG:db_username}}",
+            "password" : "{{VAL:udb_password}}"
+        }
+    }
+}
+```
+
+Imagine we know the *username* at build time but the password is only provisioned at deploy time from a Vault. We could then run the `evolve` command like so:
+
+`kfg evolve app.kfg app-with-username.kfg  --db_username sa123456`
+
+Resulting in:  
+*app-with-username.kfg*
+```
+DEFINE ENV:sql_server_address <ipaddress> /// The IP Address for the MS SQL database containing the users
+DEFINED ARG:db_username IS "sa123456"
+DEFINE ARG:db_password <optional;minlength(12)> /// password for provided user
+VAULT AKV:db_password "https://myvault.vault.azure.net"
+VAL db_password = ARG:db_password ?? AKV:db_password
+{
+    "dbs" : {
+        "user_db" : {
+            "server" : "{{ENV:sql_server_address}}",
+            "username" : "{{ARG:db_username}}",
+            "password" : "{{VAL:udb_password}}"
+        }
+    }
+}
+```
